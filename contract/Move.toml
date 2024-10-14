@@ -1,0 +1,12 @@
+[package]
+name = "noncesign"
+version = "1.0.0"
+authors = ["Dayo-Adewuyi"]
+
+[addresses]
+noncesign_contract = "0xc9cb039e4e10617046635e60908c765d51872e49363572de4cb81b4763463d65"
+
+[dependencies]
+AptosFramework = { git = "https://github.com/aptos-labs/aptos-core.git", rev = "mainnet", subdir = "aptos-move/framework/aptos-framework" }
+
+[dev-dependencies]
