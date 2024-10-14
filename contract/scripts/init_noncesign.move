@@ -1,9 +1,13 @@
 script {
-    use aptos_framework::account;
-    use aptos_framework::aptos_account;
+    use std::signer;
     use noncesign_contract::noncesign;
 
-    fun main(account: &signer) {
-        noncesign::initialize(account);
+    fun init_noncesign(account: signer) {
+        let account_addr = signer::address_of(&account);
+        
+       
+        if (!noncesign::is_initialized(account_addr)) {
+            noncesign::initialize(&account);
+        };
     }
 }

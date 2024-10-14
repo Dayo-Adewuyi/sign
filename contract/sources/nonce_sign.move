@@ -1,10 +1,10 @@
 module noncesign_contract::noncesign {
-    use std::string::String;
+    use std::string::{String, utf8};
     use std::vector;
     use aptos_framework::account;
-    use aptos_framework::event::EventHandle;
+    use aptos_framework::event;
     use aptos_framework::timestamp;
-    use aptos_std::table::Table;
+    use aptos_std::table::{Self, Table};
 
     // Document, Signature, and Event Structures
     struct Document has store {
@@ -71,7 +71,7 @@ module noncesign_contract::noncesign {
     const E_DOCUMENT_COUNT_OVERFLOW: u64 = 7;
 
     // Initialization
-    public fun initialize(account: &signer) {
+   public entry fun initialize(account: &signer) {
         let sender = account::get_signer_address(account);
         assert!(!exists<NonceSignState>(sender), E_ALREADY_INITIALIZED);
         move_to(account, NonceSignState {
@@ -81,10 +81,10 @@ module noncesign_contract::noncesign {
             owner: sender,
             user_created_documents: table::new(),
             user_signed_documents: table::new(),
-            document_created_events: event::new_event_handle<DocumentCreatedEvent>(account),
-            document_signed_events: event::new_event_handle<DocumentSignedEvent>(account),
-            document_completed_events: event::new_event_handle<DocumentCompletedEvent>(account),
-            ownership_transferred_events: event::new_event_handle<OwnershipTransferredEvent>(account),
+            document_created_events: account::new_event_handle<DocumentCreatedEvent>(account),
+            document_signed_events: account::new_event_handle<DocumentSignedEvent>(account),
+            document_completed_events: account::new_event_handle<DocumentCompletedEvent>(account),
+            ownership_transferred_events: account::new_event_handle<OwnershipTransferredEvent>(account),
         });
     }
 
@@ -195,17 +195,16 @@ public entry fun sign_document(
 
   // Helper functions
 
-fun is_authorized_signer(signer: address, signers: &vector<address>): bool {
-    vector::contains(signers, &signer)
-}
+  fun is_authorized_signer(signer: address, signers: &vector<address>): bool {
+        vector::contains(signers, &signer)
+    }
 
-// Returns the final hash if the document is complete
-public fun get_final_hash(state: &NonceSignState, document_id: u64): String {
-    assert!(table::contains(&state.documents, document_id), E_DOCUMENT_NOT_FOUND);
-    let doc = table::borrow(&state.documents, document_id);
-    assert!(doc.completed, E_DOCUMENT_COMPLETED);
-    doc.final_hash.clone()
-}
+    public fun get_final_hash(state: &NonceSignState, document_id: u64): String {
+        assert!(table::contains(&state.documents, document_id), E_DOCUMENT_NOT_FOUND);
+        let doc = table::borrow(&state.documents, document_id);
+        assert!(doc.completed, E_DOCUMENT_COMPLETED);
+        doc.final_hash
+    }
 
 // Checks if the signer has already signed the document
 fun has_signer_signed(state: &NonceSignState, document_id: u64, signer: address): bool {
@@ -226,39 +225,41 @@ fun all_signed(state: &NonceSignState, document_id: u64): bool {
 
  
   // Query Functions
-
-public fun get_documents_created_by_user(state: &NonceSignState, user: address): vector<Document> {
-    if (!table::contains(&state.user_created_documents, user)) {
-        return vector::empty();
-    };
-    let user_docs = table::borrow(&state.user_created_documents, user);
-    vector::map(user_docs, |doc_id: &u64| *table::borrow(&state.documents, *doc_id))
-}
-
-public fun get_documents_assigned_to_user_for_signing(state: &NonceSignState, user: address): vector<Document> {
-    let result = vector::empty<Document>();
-    let i = 0;
-    while (i < state.document_count) {
-        if (table::contains(&state.documents, i)) {
-            let doc = table::borrow(&state.documents, i);
-            if (is_authorized_signer(user, &doc.signers) && !doc.completed) {
-                vector::push_back(&mut result, *doc);
-            };
+  #[view]
+ public fun get_documents_created_by_user(state: &NonceSignState, user: address): vector<Document> {
+        if (!table::contains(&state.user_created_documents, user)) {
+            return vector::empty();
         };
-        i = i + 1;
-    };
-    result
-}
+        let user_docs = table::borrow(&state.user_created_documents, user);
+        vector::map(user_docs, |doc_id| *table::borrow(&state.documents, *doc_id))
+    }
+  #[view]
+ public fun get_documents_assigned_to_user_for_signing(state: &NonceSignState, user: address): vector<Document> {
+        let result = vector::empty<Document>();
+        let i = 0;
+        while (i < state.document_count) {
+            if (table::contains(&state.documents, i)) {
+                let doc = table::borrow(&state.documents, i);
+                if (is_authorized_signer(user, &doc.signers) && !doc.completed) {
+                    vector::push_back(&mut result, *doc);
+                };
+            };
+            i = i + 1;
+        };
+        result
+    }
 
-public fun get_document(state: &NonceSignState, document_id: u64): Document {
-    assert!(table::contains(&state.documents, document_id), E_DOCUMENT_NOT_FOUND);
-    *table::borrow(&state.documents, document_id)
-}
+    #[view]
+    public fun get_document(state: &NonceSignState, document_id: u64): Document {
+        assert!(table::contains(&state.documents, document_id), E_DOCUMENT_NOT_FOUND);
+        *table::borrow(&state.documents, document_id)
+    }
 
-public fun get_document_signatures(state: &NonceSignState, document_id: u64): vector<Signature> {
-    assert!(table::contains(&state.document_signatures, document_id), E_DOCUMENT_NOT_FOUND);
-    *table::borrow(&state.document_signatures, document_id)
-}
+    #[view]
+    public fun get_document_signatures(state: &NonceSignState, document_id: u64): vector<Signature> {
+        assert!(table::contains(&state.document_signatures, document_id), E_DOCUMENT_NOT_FOUND);
+        *table::borrow(&state.document_signatures, document_id)
+    }
 
 // Access control
 public fun assert_owner(state: &NonceSignState, account: &signer) {
